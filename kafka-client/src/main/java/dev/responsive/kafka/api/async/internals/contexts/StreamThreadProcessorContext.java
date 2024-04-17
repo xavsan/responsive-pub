@@ -63,9 +63,10 @@ public class StreamThreadProcessorContext<KOut, VOut>
       final DelayedAsyncStoreWriter delayedStoreWriter
   ) {
     super();
-    this.log = new LogContext(logPrefix).logger(StreamThreadProcessorContext.class);
+    this.log = new LogContext(Objects.requireNonNull(logPrefix))
+        .logger(StreamThreadProcessorContext.class);
+    this.originalContext = Objects.requireNonNull(originalContext);
     this.asyncProcessorNode = originalContext.currentNode();
-    this.originalContext = originalContext;
     this.delayedStoreWriter = Objects.requireNonNull(delayedStoreWriter);
   }
 

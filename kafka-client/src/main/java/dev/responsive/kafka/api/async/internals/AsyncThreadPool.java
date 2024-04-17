@@ -42,6 +42,10 @@ public class AsyncThreadPool {
     });
   }
 
+  boolean isEmpty(final String processorName, final int partition) {
+    return !inFlight.containsKey(InFlightWorkKey.of(processorName, partition));
+  }
+
   @VisibleForTesting
   Map<AsyncEvent, Future<?>> getInFlight(final String processorName, final int partition) {
     return inFlight.get(InFlightWorkKey.of(processorName, partition));
