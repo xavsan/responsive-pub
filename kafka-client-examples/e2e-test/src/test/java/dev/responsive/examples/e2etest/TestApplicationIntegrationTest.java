@@ -42,8 +42,8 @@ public class TestApplicationIntegrationTest {
         INPUT_TOPIC,
         OUTPUT_TOPIC,
         4,
-        1000000L,
-        10000
+        10000L,
+        100
     );
   }
 

@@ -133,7 +133,7 @@ public class E2ETestDriver {
     while (keepRunning) {
       pollOnce();
       if (recordsProcessed >= recordsToProcess) {
-        keepRunning = false;
+        notifyStop();
       }
     }
   }

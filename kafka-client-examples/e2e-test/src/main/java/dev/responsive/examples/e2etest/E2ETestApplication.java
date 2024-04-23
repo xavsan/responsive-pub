@@ -11,6 +11,9 @@ import com.datastax.oss.driver.api.querybuilder.schema.CreateKeyspace;
 import dev.responsive.examples.e2etest.Schema.InputRecord;
 import dev.responsive.examples.e2etest.Schema.OutputRecord;
 import dev.responsive.kafka.api.ResponsiveKafkaStreams;
+import dev.responsive.kafka.api.async.AsyncFixedKeyProcessorSupplier;
+import dev.responsive.kafka.api.config.ResponsiveConfig;
+import dev.responsive.kafka.api.stores.ResponsiveKeyValueParams;
 import dev.responsive.kafka.api.stores.ResponsiveStores;
 import java.net.InetSocketAddress;
 import java.time.Duration;
@@ -25,6 +28,7 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.Named;
 import org.apache.kafka.streams.kstream.Produced;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessor;
 import org.apache.kafka.streams.processor.api.FixedKeyProcessorContext;
@@ -99,13 +103,18 @@ public class E2ETestApplication {
     final KStream<Long, InputRecord> stream =
         builder.stream(inputTopic, Consumed.with(Serdes.Long(), Schema.inputRecordSerde()));
     final KStream<Long, OutputRecord> result = stream
-        .processValues(new E2ETestProcessorSupplier(name));
+        .processValues(AsyncFixedKeyProcessorSupplier.createAsyncProcessorSupplier(
+            new E2ETestProcessorSupplier(name)),
+            Named.as("AsyncProcessor"),
+            name
+        );
     result.to(outputTopic, Produced.with(Serdes.Long(), Schema.outputRecordSerde()));
     final var builderProperties = new Properties();
     builderProperties.putAll(properties);
     builderProperties.put(StreamsConfig.APPLICATION_ID_CONFIG, name);
     builderProperties.put(StreamsConfig.PROCESSING_GUARANTEE_CONFIG,
         StreamsConfig.EXACTLY_ONCE_V2);
+    builderProperties.put(ResponsiveConfig.ASYNC_THREAD_POOL_SIZE_CONFIG, 4);
     return new ResponsiveKafkaStreams(builder.build(builderProperties), builderProperties);
   }
 
@@ -194,7 +203,7 @@ public class E2ETestApplication {
     public Set<StoreBuilder<?>> stores() {
       return Set.of(
           ResponsiveStores.timestampedKeyValueStoreBuilder(
-              ResponsiveStores.keyValueStore(storeName),
+              ResponsiveStores.keyValueStore(ResponsiveKeyValueParams.keyValue(storeName)),
               Serdes.Long(),
               Schema.outputRecordSerde()
           )
