@@ -5,10 +5,13 @@ import dev.responsive.kafka.api.async.internals.contexts.AsyncThreadProcessorCon
 import dev.responsive.kafka.api.async.internals.contexts.AsyncUserProcessorContext;
 import dev.responsive.kafka.api.async.internals.events.AsyncEvent;
 import dev.responsive.kafka.api.async.internals.queues.FinalizingQueue;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -19,7 +22,8 @@ import org.slf4j.Logger;
 
 public class AsyncThreadPool {
   private final ExecutorService executorService;
-  private final Map<InFlightWorkKey, Map<AsyncEvent, Future<?>>> inFlight = new HashMap<>();
+  private final ConcurrentMap<InFlightWorkKey, Map<AsyncEvent, Future<?>>> inFlight
+      = new ConcurrentHashMap<>();
 
   public static final String ASYNC_THREAD_NAME = "AsyncThread";
 
@@ -43,7 +47,8 @@ public class AsyncThreadPool {
   }
 
   boolean isEmpty(final String processorName, final int partition) {
-    return !inFlight.containsKey(InFlightWorkKey.of(processorName, partition));
+    final var forTask = inFlight.get(InFlightWorkKey.of(processorName, partition));
+    return forTask == null || forTask.isEmpty();
   }
 
   @VisibleForTesting
@@ -70,14 +75,20 @@ public class AsyncThreadPool {
   ) {
     // todo: can also check in-flight for failed tasks
     for (final var e : events) {
-      final Future<?> future = executorService.submit(new AsyncEventTask<>(
-          e,
-          taskContext,
-          asyncProcessorContext,
-          finalizingQueue));
       final var inFlightKey = InFlightWorkKey.of(processorName, taskId);
-      inFlight.putIfAbsent(inFlightKey, new HashMap<>());
-      inFlight.get(inFlightKey).put(e, future);
+      inFlight.putIfAbsent(inFlightKey, new ConcurrentHashMap<>());
+      final var inFlightForTask = inFlight.get(inFlightKey);
+      // hold the lock for the in-flight records so that we ensure that the future is inserted
+      // before it is removed by the task
+      synchronized (inFlightForTask) {
+        final Future<?> future = executorService.submit(new AsyncEventTask<>(
+            e,
+            taskContext,
+            asyncProcessorContext,
+            finalizingQueue,
+            inFlightForTask));
+        inFlightForTask.put(e, future);
+      }
     }
   }
 
@@ -91,17 +102,20 @@ public class AsyncThreadPool {
     private final ProcessingContext originalContext;
     private final AsyncUserProcessorContext<KOut, VOut> wrappingContext;
     private final FinalizingQueue finalizingQueue;
+    private final Map<AsyncEvent, Future<?>> inFlightForTask;
 
     private AsyncEventTask(
         final AsyncEvent event,
         final ProcessingContext originalContext,
         final AsyncUserProcessorContext<KOut, VOut> userContext,
-        final FinalizingQueue finalizingQueue
+        final FinalizingQueue finalizingQueue,
+        final Map<AsyncEvent, Future<?>> inFlightForTask
     ) {
       this.event = event;
       this.originalContext = originalContext;
       this.wrappingContext = userContext;
       this.finalizingQueue = finalizingQueue;
+      this.inFlightForTask = inFlightForTask;
     }
 
     @Override
@@ -113,6 +127,9 @@ public class AsyncThreadPool {
       event.transitionToProcessing();
       event.inputRecordProcessor().run();
       finalizingQueue.scheduleForFinalization(event);
+      synchronized (inFlightForTask) {
+        inFlightForTask.remove(event);
+      }
     }
   }
 

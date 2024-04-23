@@ -248,13 +248,13 @@ public class AsyncProcessor<KIn, VIn, KOut, VOut>
 
   void assertQueuesEmpty() {
     if (!schedulingQueue.isEmpty()) {
-      throw new IllegalStateException("scheduling queue expected to be empty on first process");
+      throw new IllegalStateException("scheduling queue expected to be empty");
     }
     if (!threadPool.isEmpty(asyncProcessorName, taskId.partition())) {
-      throw new IllegalStateException("thread pool expected to be empty on first process");
+      throw new IllegalStateException("thread pool expected to be empty");
     }
     if (!finalizingQueue.isEmpty()) {
-      throw new IllegalStateException("finalizing queue expected to be empty on first process");
+      throw new IllegalStateException("finalizing queue expected to be empty");
     }
   }
 
