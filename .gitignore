@@ -234,6 +234,3 @@ sindri
 kafka-client-examples/e2e-test/docker/antithesis/config/volumes/kafka
 kafka-client-examples/e2e-test/docker/antithesis/config/volumes/scylla
 kafka-client-examples/e2e-test/docker/antithesis/config/volumes/zookeeper
-!kafka-client-examples/e2e-test/docker/antithesis/config/volumes/kafka/placeholder
-!kafka-client-examples/e2e-test/docker/antithesis/config/volumes/scylla/placeholder
-!kafka-client-examples/e2e-test/docker/antithesis/config/volumes/zookeeper/placeholder
