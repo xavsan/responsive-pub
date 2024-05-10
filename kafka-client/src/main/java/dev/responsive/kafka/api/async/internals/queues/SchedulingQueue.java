@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
-import jnr.ffi.annotations.In;
 import org.apache.kafka.common.utils.LogContext;
 import org.slf4j.Logger;
 
