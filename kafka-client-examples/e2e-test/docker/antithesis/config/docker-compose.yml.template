@@ -3,17 +3,22 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
     container_name: zookeeper
+    hostname: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     volumes:
-      - ./volumes/zookeeper:/var/lib/zookeeper
-      - ./volumes/zookeeper/log:/var/lib/zookeeper/log
-      - ./volumes/zookeeper/data:/var/lib/zookeeper/data
+      - ./volumes/zookeeper:/volumes/zookeeper:rw
+      - ./volumes/zookeeper/log:/volumes/zookeeper/log:rw
+      - ./volumes/zookeeper/data:/volumes/zookeeper/data:rw
+    networks:
+      backend:
+        ipv4_address: 10.0.0.12
 
   broker:
     image: confluentinc/cp-kafka:7.3.0
     container_name: broker
+    hostname: broker
     ports:
     # To learn about configuring Kafka for access across networks see
     # https://www.confluent.io/blog/kafka-client-cannot-connect-to-broker-on-aws-on-docker-etc/
@@ -30,19 +35,31 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 1000
     volumes:
-      - ./volumes/kafka:/var/lib/kafka
-      - ./volumes/kafka/data:/var/lib/kafka/data
+      - ./volumes/kafka:/volumes/kafka:rw
+      - ./volumes/kafka/data:/volumes/kafka/data:rw
+    networks:
+      backend:
+        ipv4_address: 10.0.0.14
 
   scylla:
     image: scylladb/scylla:latest
     container_name: scylla
+    hostname: scylla
+    command: --smp 1 --options-file /etc/scylla/scylla.yaml --memory 750M --overprovisioned 1 --api-address 0.0.0.0
     ports:
       - "9042:9042"
     volumes:
-      - ./volumes/scylla:/var/lib/scylla
+        - ./volumes/scylla/data:/var/lib/scylla/data
+        - ./volumes/scylla/config:/opt/antithesis/config
+        - ./volumes/scylla.yaml:/etc/scylla/scylla.yaml
+    networks:
+      backend:
+        ipv4_address: 10.0.0.13
 
   application:
     image: us-central1-docker.pkg.dev/molten-verve-216720/responsive-repository/e2e-test:${KAFKA_CLIENT_VERSION}
+    container_name: application
+    hostname: application
     deploy:
       mode: replicated
       replicas: 2
@@ -59,11 +76,15 @@ services:
       E2E_APP_MODE: APPLICATION
       CONFIG_PATH: "/app.properties"
     volumes:
-      - ./volumes/app.properties:/app.properties
+      - ./volumes/app.properties:/app.properties:rw
+    networks:
+      backend:
+        ipv4_address: 10.0.0.15
 
   driver:
     image: us-central1-docker.pkg.dev/molten-verve-216720/responsive-repository/e2e-test:${KAFKA_CLIENT_VERSION}
     container_name: driver
+    hostname: driver
     depends_on:
       - broker
       - scylla
@@ -77,4 +98,13 @@ services:
       E2E_APP_MODE: DRIVER
       CONFIG_PATH: "/app.properties"
     volumes:
-      - ./volumes/app.properties:/app.properties
+      - ./volumes/app.properties:/app.properties:rw
+    networks:
+      backend:
+        ipv4_address: 10.0.0.16
+networks:
+  backend:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 10.0.0.0/24
